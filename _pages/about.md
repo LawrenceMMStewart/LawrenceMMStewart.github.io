@@ -1,6 +1,6 @@
 ---
 layout: about
-title: about
+title: About
 permalink: /
 <!-- subtitle: <a href='#'>Affiliations</a>. Address. Contacts. Moto. Etc. -->
 
@@ -24,7 +24,7 @@ I am a PhD student at École Normale Superiéure and INRIA, working with [Franci
 
 Currently working on Machine Learning, in particular with a research focus on developing novel methodologies for Deep Learning.
 
-Please feel free to reach out with regards to possible collaborations, or questions relating to our research!
+Please feel free to reach out to discuss possible collaborations, or with regards to any questions relating to our research!
 
 <!-- Hello my name is Lawreence. Write your biography here. Tell the world about yourself. Link to your favorite [subreddit](http://reddit.com). You can put a picture in, too. The code is already in, just name your picture `prof_pic.jpg` and put it in the `img/` folder. -->
 
