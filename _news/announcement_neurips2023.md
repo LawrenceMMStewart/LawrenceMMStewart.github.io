@@ -6,6 +6,6 @@ related_posts: false
 featured : false
 ---
 
-Our paper *Differentiable clustering with perturbed random forests*  has been accepted to **NeurIPS** 2023. :microscope: :computer:
+Our paper *Differentiable Clustering with Perturbed Spanning Forests*  has been accepted to **NeurIPS** 2023. :microscope: :computer:
 
 

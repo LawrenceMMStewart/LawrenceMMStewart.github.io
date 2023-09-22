@@ -7,7 +7,7 @@ nav: True
 nav_order: 5
 ---
 
-For general contact, please address emails to `stewart.ai@pm.me`. 
+For general contact, please address emails to [`stewart.ai@pm.me`](mailto:stewart.ai@pm.me).
 
 PGP key:
 ```
@@ -27,4 +27,4 @@ es+KVXkYAQ==
 -----END PGP PUBLIC KEY BLOCK-----
 ```
 
-Any contact specifically relating to INRIA should be addressed to `lawrence.stewart@inria.fr`.
+Any contact specifically relating to INRIA should be addressed to [`lawrence.stewart@inria.fr`](mailto:lawrence.stewart@inria.fr).
