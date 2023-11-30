@@ -1,25 +1,17 @@
 ---
 layout: distill
-title: a distill-style blog post
-description: an example of a distill-style blog post and main elements
-tags: distill formatting
+title: Differentiable Clustering with Perturbed Random Forests
+description: A simple intro!
+tags: differentiable clustering research 
 giscus_comments: true
-date: 2021-05-22
-featured: false
+date: 2023-11-29
+featured: true
 
 authors:
-  - name: Albert Einstein
-    url: "https://en.wikipedia.org/wiki/Albert_Einstein"
+  - name: Lawrence Stewart 
+    url: "https://lawrencemmstewart.github.io/"
     affiliations:
-      name: IAS, Princeton
-  - name: Boris Podolsky
-    url: "https://en.wikipedia.org/wiki/Boris_Podolsky"
-    affiliations:
-      name: IAS, Princeton
-  - name: Nathan Rosen
-    url: "https://en.wikipedia.org/wiki/Nathan_Rosen"
-    affiliations:
-      name: IAS, Princeton
+      name: Ecole Normale Superieure, INRIA Paris
 
 bibliography: 2018-12-22-distill.bib
 
@@ -30,17 +22,16 @@ bibliography: 2018-12-22-distill.bib
 #   - we may want to automate TOC generation in the future using
 #     jekyll-toc plugin (https://github.com/toshimaru/jekyll-toc).
 toc:
-  - name: Equations
+  - name: Clustering
     # if a section has subsections, you can add them as follows:
     # subsections:
     #   - name: Example Child Subsection 1
     #   - name: Example Child Subsection 2
-  - name: Citations
-  - name: Footnotes
-  - name: Code Blocks
-  - name: Interactive Plots
-  - name: Layouts
-  - name: Other Typography?
+  - name: Kruskal's Algorithm
+    subsections:
+        -name: Recap of Spanning Forests and Trees
+        -name: Single Linkagle Clustering
+  - name: Differentiable Clustering via Perturbations
 
 # Below is an example of injecting additional post-specific styles.
 # If you use this post as a template, delete this _styles block.
@@ -61,6 +52,97 @@ _styles: >
   }
 
 ---
+
+
+## Clustering
+
+Clustering is one of the most classical and commonplace tasks in Machine Learning.  The goal is to separate data $$x_1, \ldots, x_n$$ into $$k$$ groups, which are refered to as clusters. Clustering has wide-spread applications in bio-informatics, data compression, graphics, unsupervised and semi-supervised learning, as well as many other domains! 
+
+There is a large collection of [well established clustering algorithms](https://en.wikipedia.org/wiki/Cluster_analysis) (with a select few being displayed in the table below).
+
+| Methodology        | Examples |  Possible Drawbacks
+| ------------- |-------------| -------------| 
+| centroid | k-means | NP-Hard, heuristic (not direct solve of objective function).
+| connectivity | Linkage Algorithms (e.g. Single, UPGMA)| Computational Costly, Outliers.
+| distribution| EM Gaussian| Overfitting, Assumptions.
+
+When dealing with semantic data e.g. Images or Text, applying such algorithms to the data directly is unlikely to lead to meaningful clusters.<d-footnote> To see this, try applying k-means directly on the MNIST data set </d-footnote>! Instead, we would like to learn representations of are data e.g. features of a Neural Network, which when clustered, lead to clusters which capture meaningful semantic information.
+
+Unfortunately, we cannot just plug any classical clustering algorithm into a Deep Learning pipeline<d-footnote> Or more generally, gradient based learning pipeline.</d-footnote> :dizzy_face: .
+
+Can you think of the reason as to why not? The answer is in the box below: 
+
+
+{% details :warning: Gradient Based Learning Compatibility with Classical Clustering? %}
+As a function, the solution of a clustering problem is piece-wise constant with respect to its inputs (such as a similarity or distance matrix), and its **gradient would therefore be zero almost everywhere**. This operation is therefore naturally ill-suited to the use of gradient-based approaches to minimize an objective, such as backpropagation for training Neural Networks.
+
+If the above is not clear at first, just not that the cluster assignment of $$x_i$$ will almost always be the same as the cluster assignment for $$x_i + \epsilon$$ where $$\epsilon$$ denotes an infinitesimal change, so the gradient will be zero.
+{% enddetails %}
+
+## Goal :rocket:
+
+In this blog post we will give a simple explanation of our recent work that aims to address the above problem. We will keep math and other technical details to an absolute minimum, but for a more complete picture you can refer to the paper <d-cite key="stewart2023differentiable"></d-cite>.
+
+:pencil2: For any further questions, please feel free to contact me !
+
+
+## Kruskal's Algorithm
+
+#### Viewing our data as a graph
+
+Firstly, we will recap maximum weight spanning forests and kruskals algorithm.
+
+We can think of our data $$x_1, \ldots, x_n \in \mathbb{R}^d$$ as nodes of a fully-connected graph $$\mathcal{G}$$, where the weight of an edge $$(i,j)$$ is given by the $$(i,j)^{th}$$ entry of a user-chosen similarity matrix $$\Sigma \in \mathbb{R}^{n\times n}$$. A large value of $$\Sigma_{i,j}$$ means that points $$i$$ and $$j$$ are similar (or close to eachother), whilst a smaller value means that the points are disimilar (or far away from eachother).
+
+There are many possible choices of similarity matrix, for example:
+
+$$
+\begin{align}
+\Sigma_{ij} &= - \|x_i - x_j\|_2^2 \\[1em]
+\Sigma_{ij} &=\exp\left( -\frac{1}{\gamma^2} \|x_i - x_j\|_2^2\right)
+\end{align}
+$$
+
+
+{% include figure.html path="assets/img/blog-differentiableclustering/Kn.pdf" class="img-fluid rounded z-depth-1" %}
+<!-- \begin{align}
+\Sigma_{ij} &= - \|x_i - x_j\|_2^2 \\
+\Sigma_{ij} &=\exp\left( -\frac{1}{\gamma^2} \|x_i - x_j\|_2^2\right)
+\end{align} -->
+
+<!-- $$\Sigma_{ij} = - \|x_i - x_j\|_2^2$$
+
+$$\Sigma_{ij} =\exp\left( -\frac{1}{\gamma^2} \|x_i - x_j\|_2^2\right)$$ -->
+
+### Spanning trees
+
+For the complete graph with $$n$$ vertices $$K_n$$ over nodes $$\{x_1, \ldots, x_n\}$$, we denote by $$\mathcal{T}$$ the set of *spanning trees* on $$K_n$$, i.e., subgraphs with no cycles and one connected component. Among these trees will be one or more that has maximum weight (the total weight of all edges in the tree), which is known as the *maximum weight spanning tree*.
+
+**Kruskals Algorithm** is a greedy algorithm to find a maximum weight spanning tree. It is very simp
+
+{% highlight python %}
+tree = {}
+edges = sort(edges)
+for e in edges:
+  if union(tree, {e}) has no cycle:
+    tree = union(tree, {e})
+  else:
+    pass
+  if tree is spanning:
+    break
+{% endhighlight %}
+
+
+
+
+
+
+
+### Recap of Spanning Forests and Trees
+### Single Linkage Clustering
+
+## Differentiable Clustering via Perturbations
+
 
 ## Equations
 
