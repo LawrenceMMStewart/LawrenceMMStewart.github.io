@@ -92,19 +92,23 @@ In this blog post we will give a simple explanation of our recent work that aims
 
 Firstly, we will recap maximum weight spanning forests and kruskals algorithm.
 
-We can think of our data $$x_1, \ldots, x_n \in \mathbb{R}^d$$ as nodes of a fully-connected graph $$\mathcal{G}$$, where the weight of an edge $$(i,j)$$ is given by the $$(i,j)^{th}$$ entry of a user-chosen similarity matrix $$\Sigma \in \mathbb{R}^{n\times n}$$. A large value of $$\Sigma_{i,j}$$ means that points $$i$$ and $$j$$ are similar (or close to eachother), whilst a smaller value means that the points are disimilar (or far away from eachother).
+We can think of our data $$x_1, \ldots, x_n \in \mathbb{R}^d$$ as nodes of a fully-connected graph $$\mathcal{G}$$, where the weight of an edge $$(i,j)$$ is given by the $$(i,j)^{th}$$ entry of a user-chosen similarity matrix $$\Sigma \in \mathbb{R}^{n\times n}$$. A large value of $$\Sigma_{i,j}$$ means that points $$i$$ and $$j$$ are similar, whilst a smaller value means that the points are disimilar.
 
-There are many possible choices of similarity matrix, for example:
+<!-- There are many possible choices of similarity matrix, for example:
 
 $$
 \begin{align}
 \Sigma_{ij} &= - \|x_i - x_j\|_2^2 \\[1em]
 \Sigma_{ij} &=\exp\left( -\frac{1}{\gamma^2} \|x_i - x_j\|_2^2\right)
 \end{align}
-$$
+$$ -->
+
+Below is an example graph for two different typical choices of $$\Sigma$$.
+
+{% include figure.html path="assets/img/blog-differentiableclustering/Kn.svg" class="img-fluid rounded z-depth-0" zoomable=true %}
 
 
-{% include figure.html path="assets/img/blog-differentiableclustering/Kn.pdf" class="img-fluid rounded z-depth-1" %}
+
 <!-- \begin{align}
 \Sigma_{ij} &= - \|x_i - x_j\|_2^2 \\
 \Sigma_{ij} &=\exp\left( -\frac{1}{\gamma^2} \|x_i - x_j\|_2^2\right)
@@ -118,10 +122,11 @@ $$\Sigma_{ij} =\exp\left( -\frac{1}{\gamma^2} \|x_i - x_j\|_2^2\right)$$ -->
 
 For the complete graph with $$n$$ vertices $$K_n$$ over nodes $$\{x_1, \ldots, x_n\}$$, we denote by $$\mathcal{T}$$ the set of *spanning trees* on $$K_n$$, i.e., subgraphs with no cycles and one connected component. Among these trees will be one or more that has maximum weight (the total weight of all edges in the tree), which is known as the *maximum weight spanning tree*.
 
-**Kruskals Algorithm** is a greedy algorithm to find a maximum weight spanning tree. It is very simp
+`Kruskals algorithm` is a greedy algorithm to find a maximum weight spanning tree. It is incredibly simple, and consists of adding edges in a greedy manner to build the tree, and ignoring an edge if it would lead to a cycle. The psuedo-code for the algorithm is as follows:
 
 {% highlight python %}
-tree = {}
+# 
+tree = {} 
 edges = sort(edges)
 for e in edges:
   if union(tree, {e}) has no cycle:
@@ -132,9 +137,14 @@ for e in edges:
     break
 {% endhighlight %}
 
+At each time step $t$, we will have a forest with $k=n-t$ connected components, where $n$ is the number of data points / nodes in the graph. A visual depiction of the algorithm in action can be seen below:
 
+{% include figure.html path="assets/img/blog-differentiableclustering/mst.gif" class="img-fluid rounded z-depth-0" zoomable=true loop=true style="width:90%;" %}
 
+### Relationship to Clustering
 
+When running Kruskal's algorithm, one typically keeps track of the adjacency matrix $$A$$ of the forest at each time step.
+{% include figure.html path="assets/img/blog-differentiableclustering/kruskals.gif" class="img-fluid rounded z-depth-0" zoomable=true loop=true style="width:90%;" %}
 
 
 
