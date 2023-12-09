@@ -143,10 +143,81 @@ At each time step $t$, we will have a forest with $k=n-t$ connected components, 
 
 ### Relationship to Clustering
 
-When running Kruskal's algorithm, one typically keeps track of the adjacency matrix $$A$$ of the forest at each time step.
+When running Kruskal's algorithm, one typically builds the tree $$T$$ by keeping track of the adjacency matrix $$A\in \{0, 1\}^{n\times n}$$ of the forest at each time step. We recall that:
+
+$$
+\begin{equation*}
+  A_{i,j} = 1 \Longleftrightarrow (i,j)\in T
+\end{equation*}
+$$
+
+However by modifying Kruskal's algorithm, we can also keep track of the cluster equivalence matrix $$M\in \{0, 1\}^{n\times n}$$, where:
+
+$$
+\begin{equation*}
+  M_{i,j} = 1 \Longleftrightarrow (i, j) \text{ are both in the same connected component of }  T
+\end{equation*}
+$$
+
+If we are to stop Kruskal's algorithm one step before completion, we will obtain a forest with $$k=2$$ connected components. We can view these two connected components as clusters!
+
+More generally, if we are stop the algorithm $$k+1$$ steps before completion, we will obtain a forest with $$k$$ connected components. Whats nice, is it turns out that Kruskal's algorithm has a **Matroid Structure**, when means that if we stop the algorithm when the forest has $$k$$ connected components, that forest will indeed have maximum weight amongst all forests of $$\mathcal{G}$$ that have $$k$$ connected components!  More details are given in the box below, but they are not neccessary to understand the goal of this blog.
+
+{% details Optimality of Kruskal's %}
+The greedy optimality of Kruskal's follows from the fact that the forests of $$\mathcal{G}$$ correspond to independent sets of the [Graphic Matroid](https://en.wikipedia.org/wiki/Graphic_matroid). 
+
+To verify this is true, note that the intersection of two forests is always a forest, and the spanning trees of a graph form the basis for the matroid. The matroid circuits can are the cycles in the graph. Optimality of Kruskal's follows trivially (as the algorithm is equivalent to finding the maximum weight basis of the graph matroid).
+{% enddetails %}
+
+Hence we can use Kruskal's algorithm to cluster our data into $$k$$ groups:
+
+{% highlight python %}
+def cluster(Sigma, k)
+  do:
+    run kruskals step until k connected components
+  return: A_k, M_k
+{% endhighlight %}
+
+This algorithm is known as **Single-Linkage** and is related to a family of *hierarchical clustering* algorithms. An example of the algorithm running is given below, where the data is separated into three distinct clusters:
+
 {% include figure.html path="assets/img/blog-differentiableclustering/kruskals.gif" class="img-fluid rounded z-depth-0" zoomable=true loop=true style="width:90%;" %}
 
+This is all well and good, but what does the above have anything to do with differentiable clustering?
 
+### Perturbations
+
+We will now take a pause from Kruskal's algorithm to look at **perturbations**, sometimes also called **randomized smoothing**. If maths isn't your thing, not to worry as understanding the perturbations / smoothing in detail is not neccessary for getting a grasp of the overall methodology.
+
+For a [convex hull](https://en.wikipedia.org/wiki/Convex_hull) $$\mathcal{C} \subset \mathbb{R}^d$$ we define:
+
+- **argmax solution** $$y^*:\mathbb{R}^d \rightarrow \mathbb{R}^d$$ 
+- **max solution** $$F:\mathbb{R}^d\rightarrow\mathbb{R}$$ 
+
+as follows:
+
+$$
+\DeclareMathOperator{\argmax}{argmax}
+\begin{align}
+ y^*(\theta) &= \argmax\limits_{y \in \mathcal{C}} \langle y, \theta \rangle. \\[1em]
+ F(\theta) &= \max\limits_{y \in \mathcal{C}} \langle y, \theta \rangle. 
+\end{align}
+$$
+
+Note both $$y^*$$ and $$F$$ are piece-wise constant in $$\theta$$. For this reason both the gradient $$\nabla_\theta F(\theta) \in \mathbb{R}^d$$ and Jacobian $$J_\theta y^*(\theta)\in \mathbb{R}^{d\times d}$$ will be zero almost everywhere, similar to the case of classical clustering algorithms.
+
+To get non-zero gradients, we can instead replace $$\theta$$ in the above, by $$\theta + \epsilon Z$$, where $$Z$$ is some an exponential-family random variable e.g. multi-variate Gaussian with zero mean and identity covariance. This induces a probability distribution:
+
+$$\mathbb{P}_Y(Y = y ; \theta) = \mathbb{P}_Z(y^*(\theta + \epsilon Z) = y)$$
+
+This yields their perturbed versions:
+
+$$
+\DeclareMathOperator{\argmax}{argmax}
+\begin{align}
+ y^*_\epsilon(\theta) &= \textcolor{orange}{\mathbb{E}_Z}\left[\argmax\limits_{y \in \mathcal{C}} \langle y, \theta + \epsilon \textcolor{orange}{Z} \rangle\right]. \\[1em]
+ F_\epsilon(\theta) &= \textcolor{orange}{\mathbb{E}_Z}\left[\max\limits_{y \in \mathcal{C}} \langle y, \theta + \epsilon \textcolor{orange}{Z} \rangle \right].
+\end{align}
+$$
 
 ### Recap of Spanning Forests and Trees
 ### Single Linkage Clustering
@@ -166,6 +237,7 @@ Here is an example:
 $$
 \left( \sum_{k=1}^n a_k b_k \right)^2 \leq \left( \sum_{k=1}^n a_k^2 \right) \left( \sum_{k=1}^n b_k^2 \right)
 $$
+
 
 Note that MathJax 3 is [a major re-write of MathJax](https://docs.mathjax.org/en/latest/upgrading/whats-new-3.0.html) that brought a significant improvement to the loading and rendering speed, which is now [on par with KaTeX](http://www.intmath.com/cg5/katex-mathjax-comparison.php).
 
