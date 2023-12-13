@@ -21,17 +21,17 @@ bibliography: 2018-12-22-distill.bib
 #     for hyperlinks within the post to work correctly.
 #   - we may want to automate TOC generation in the future using
 #     jekyll-toc plugin (https://github.com/toshimaru/jekyll-toc).
-toc:
-  - name: Clustering
+# toc:
+  # - name: Clustering
     # if a section has subsections, you can add them as follows:
     # subsections:
     #   - name: Example Child Subsection 1
     #   - name: Example Child Subsection 2
-  - name: Kruskal's Algorithm
-    subsections:
-        -name: Recap of Spanning Forests and Trees
-        -name: Single Linkagle Clustering
-  - name: Differentiable Clustering via Perturbations
+  # - name: Goal 
+  #   subsections:
+  #       -name: Recap of Spanning Forests and Trees
+  #       -name: Single Linkagle Clustering
+  # - name: Differentiable Clustering via Perturbations
 
 # Below is an example of injecting additional post-specific styles.
 # If you use this post as a template, delete this _styles block.
@@ -70,7 +70,7 @@ When dealing with semantic data e.g. Images or Text, applying such algorithms to
 
 Unfortunately, we cannot just plug any classical clustering algorithm into a Deep Learning pipeline<d-footnote> Or more generally, gradient based learning pipeline.</d-footnote> :dizzy_face: .
 
-Can you think of the reason as to why not? The answer is in the box below: 
+Why not? The answer is in the box below: 
 
 
 {% details :warning: Gradient Based Learning Compatibility with Classical Clustering? %}
@@ -281,7 +281,7 @@ plt.show()
 {% endhighlight%}
 {% enddetails%}
 
-### Spanning Forests from Stopping Early
+### Obtaining Spanning Forests (early stopping)
 
 When running Kruskal's algorithm, one typically builds the tree $$T$$ by keeping track of the adjacency matrix $$A\in \{0, 1\}^{n\times n}$$ of the forest at each time step. We recall that:
 
@@ -328,7 +328,7 @@ M(A)_{i,j} = \begin{cases}
 \end{cases}
 $$ 
 
-Hence we can view the connected components of a forest as clusters, with two points $$x_i$$ and $$x_j$$ being in the same cluster if and only if $$M(A)_{ij} = 1$$. For short hand, when talking about a fixed $$A_k\in \mathcal{A}_k$$, we write $$M_k := M(A_k)$$. 
+One can view the connected components of a forest as clusters, with two points $$x_i$$ and $$x_j$$ being in the same cluster if and only if $$M(A)_{ij} = 1$$. For short hand, when talking about a fixed $$A_k\in \mathcal{A}_k$$, we write $$M_k := M(A_k)$$. 
 
 {% details Relationship between $$A_k$$ and $$M_k$$ %}
 
@@ -445,7 +445,7 @@ as follows:
 $$
 \DeclareMathOperator{\argmax}{argmax}
 \begin{align}
- y^*(\theta) &= \argmax\limits_{y \in \mathcal{C}} \langle y, \theta \rangle. \\[1em]
+ y^*(\theta) &= \underset{y \in \mathcal{C}}{\argmax} \langle y, \theta \rangle. \\[1em]
  F(\theta) &= \max\limits_{y \in \mathcal{C}} \langle y, \theta \rangle. 
 \end{align}
 $$
@@ -466,12 +466,12 @@ This yields the perturbed versions of both the **argmax** and the **max**:
 $$
 \DeclareMathOperator{\argmax}{argmax}
 \begin{align}
- y^*_\epsilon(\theta) &= \textcolor{orange}{\mathbb{E}_Z}\left[\argmax\limits_{y \in \mathcal{C}} \langle y, \theta + \epsilon \textcolor{orange}{Z} \rangle\right]. \\[1em]
+ y^*_\epsilon(\theta) &= \textcolor{orange}{\mathbb{E}_Z}\left[\underset{y \in \mathcal{C}}{\argmax} \langle y, \theta + \epsilon \textcolor{orange}{Z} \rangle\right]. \\[1em]
  F_\epsilon(\theta) &= \textcolor{orange}{\mathbb{E}_Z}\left[\max\limits_{y \in \mathcal{C}} \langle y, \theta + \epsilon \textcolor{orange}{Z} \rangle \right].
 \end{align}
 $$
 
-We note that as $$\epsilon \rightarrow 0$$, both $$F_\epsilon(\theta) \rightarrow F(\theta)$$ and $$y^*_\epsilon(\theta) \rightarrow y^*(\theta)$$. There are many other properties of the perturbed argmax and max (such as bounding their difference with their unperturbed counterparts), and we refer the reader to <d-cite key="berthet2020pert"></d-cite>. The figure below depicts the smoothing, (thanks to Quentin Berthet for providing it):
+We note that as $$\epsilon \rightarrow 0$$, both $$F_\epsilon(\theta) \rightarrow F(\theta)$$ and $$y^*_\epsilon(\theta) \rightarrow y^*(\theta)$$. There are many other properties of the perturbed argmax and max (such as bounding their difference with their unperturbed counterparts), and for further reading we refer the reader to <d-cite key="berthet2020pert"></d-cite>. The figure below depicts the smoothing, (thanks to Quentin Berthet for providing it):
 
 
 ![Illustration of smoothing with perturbations.](/assets/img/blog-differentiableclustering/perturbations_fig.svg){:style="display:block; margin-left:auto; margin-right:auto; width:70%;"}
@@ -506,10 +506,10 @@ To see this, let $$\mathcal{C}_k = cvx(\mathcal{A}_k)$$ be the convex hull of tr
 
 $$
 \begin{equation}
-A_k^*(\Sigma) = \argmax_{A\in \mathcal{C}_k}\left\langle A, \Sigma \right\rangle.
+A_k^*(\Sigma) = \underset{A\in \mathcal{C}_k}{\argmax}\left\langle A, \Sigma \right\rangle.
 \end{equation}
 $$
-$$
+
 Its corresponding total weight, take the form of a max:
 
 $$
@@ -523,7 +523,7 @@ Hence applying perturbations to this LP we can obtain differentiable proxies:
 $$
 \DeclareMathOperator{\argmax}{argmax}
 \begin{align}
- A^*_{k,\epsilon}(\Sigma) &= \textcolor{orange}{\mathbb{E}_Z}\left[\argmax\limits_{A \in \mathcal{C}_k} \langle A, \Sigma + \epsilon \textcolor{orange}{Z} \rangle\right]. \\[1em]
+ A^*_{k,\epsilon}(\Sigma) &= \textcolor{orange}{\mathbb{E}_Z}\left[\underset{A \in \mathcal{C}_k}{\argmax} \langle A, \Sigma + \epsilon \textcolor{orange}{Z} \rangle\right]. \\[1em]
  F_{k,\epsilon}(\theta) &= \textcolor{orange}{\mathbb{E}_Z}\left[\max\limits_{A \in \mathcal{C}_k} \langle A, \Sigma + \epsilon \textcolor{orange}{Z} \rangle \right].
 \end{align}
 $$
@@ -625,16 +625,16 @@ Lets look at one potential application (among many).
 
 ### Incorporating Partial Information
 
-Suppose we have data where some (or all) of the points have labels i.e. a semi-supervised learning or fully-supervised learning setting. We would ideally like to representations of our data, which when clustered, respect this label information.
+Suppose we have data where some (or all) of the points have labels i.e. a semi-supervised learning or fully-supervised learning setting. We would ideally like to learn representations of our data, which when clustered, respect this label information.
 
 
-Lets take a simple example below, where the embeddings of a batch of data are depicted by the circles. Lets suppose that the two red points share the same label e.g. *cat* which is different from that of the blue point e.g. *dog*, whilst all other points are unlabelled.
+To illustrate this point, lets consider the simple example below, where the embeddings of a batch of data are depicted by the circles. Lets suppose that the two red points share the same label e.g. *cat* which is different from that of the blue point e.g. *dog*, whilst all other points are unlabelled.
 
 
 
 ![Partial label Information can be encoded via must links and must-not links.](/assets/img/blog-differentiableclustering/constraints.svg){:style="display:block; margin-left:auto; margin-right:auto; width:70%;"}
 
-If we were to cluster these embeddings, say into two clusters, using our approach described above, we would obtain something like the depiction below:
+If we were to cluster these embeddings into two clusters, using our approach described above, we would obtain something like the depiction below:
 
 ![test](/assets/img/blog-differentiableclustering/unconstrained.svg){:style="display:block; margin-left:auto; margin-right:auto; width:70%;"}
 
@@ -646,16 +646,71 @@ To enforce label consistency, we can encode all the label information into a $$n
 - $$0$$ if $$i$$ and $$j$$ should not be in the same connencted component i.e. a **must-not link constraint**.
 - $$\star$$, a special value signifing there are no constraints between $$i$$ and $$j$$.
 
-Note the **must-link** and **must-not-link** constraints are very general concepts, and go beyond label information. For example, ths can ecompass active learning, self-supervised learning and fairness constraints.
+Note the **must-link** and **must-not-link** constraints are very general concepts, and go beyond label information. For example, such constraints can ecompass active learning, self-supervised learning and fairness conditions. 
+
+For any constraint matrix $$M_\Omega$$, we can also consider modified versions of the maximum weight $$k$$-spanning forest LP, restricted to the set of forests that respect the constraint matrix $$\mathcal{C}_k(M_\Omega)$$:
 
 
+$$
+\begin{equation}
+A_k^*(\Sigma ; M_\Omega) =  \underset{A\in \mathcal{C}_k(M_\Omega)}{\argmax}\left\langle A, \Sigma \right\rangle.
+\end{equation}
+$$
+
+$$
+\begin{equation}
+F_k(\Sigma ; M_\Omega) = \max_{A\in \mathcal{C}_k(M_\Omega)}\left\langle A, \Sigma \right\rangle.
+\end{equation}
+$$
+
+Unfortunately, the above LP has a matroid structure only in certain settings, so running Kruskal's algorithm but adding checks for **must-not-link** constraints and enforcing **must-link** constraints will not guarentee optimality. It is however, a suitable heurestic that we can still use to obtain clusters satisfying our constraint matrix $$M_\Omega$$. For details on how to implement the constained clustering, see the source code of [JaxClust](https://lawrencemmstewart.github.io/jaxclust/).
+
+Solving the LP with constrained clustering would result in the clusters displayed below:
 
 ![test](/assets/img/blog-differentiableclustering/constrained.svg){:style="display:block; margin-left:auto; margin-right:auto; width:70%;"}
 
-<!-- {% include figure.html path="assets/img/blog-differentiableclustering/constrained-clustering.svg" class="img-fluid rounded z-depth-0" zoomable=true style="width:40%;" %} -->
+### A Loss Function for Differentiable Clustering
 
-{% include figure.html path="assets/img/blog-differentiableclustering/pipeline.svg" class="img-fluid rounded z-depth-1" zoomable=true style="width:40%;" %}
+Since $$\mathcal{C}_k(M_\Omega) \subseteq \mathcal{C}$$, it trivially follows that $$F_k(\Sigma ; M_\Omega) \leq F_k(\Sigma )$$. In words, the total weight of the maximum $$k$$-spanning forest will always be greater than or equal to the total weight of the maximum $$k$$-spanning forest satisfying the constraint matrix $$M_\Omega$$, simply as there are more forests to choose from!
 
-{% include figure.html path="assets/img/blog-differentiableclustering/tsne.svg" style="width:20%;" %}
+We can design a loss function:
 
-![](/assets/img/blog-differentiableclustering/tsne.svg){:style="display:block; margin-left:auto; margin-right:auto; width:70%;"}
+$$\ell(\Sigma ; M_\Omega) = F_k(\Sigma) - F_k(\Sigma ; M_\Omega).$$
+
+The above loss function is non-negative, and is zero if and only if the clustering with the constraint matrix $$M_\Omega$$ leads to a forest having the same weight as with no constraints. We can think of this as *"the loss will be zero if the embeddings are in a position that satisfies the label constraints".*
+
+Furhermore, by replacing $$F_k$$ with $$F_{k, \epsilon}$$, this loss function can be smoothed as we have previously seen:
+
+
+$$\ell_\epsilon(\Sigma ; M_\Omega) = F_{k,\epsilon}(\Sigma) - F_{k, \epsilon}(\Sigma ; M_\Omega).$$
+
+We remark that the gradient of the loss function can be trivially calculated as:
+
+$$\nabla_\Sigma \ell_\epsilon(\Sigma ; M_\Omega) = A_{k,\epsilon}(\Sigma) - A_{k, \epsilon}(\Sigma ; M_\Omega).$$
+
+Hence the gradient the $$\ell_\epsilon$$ corresponds to the difference of the adjacency matrix of the constrained and unconstrained spanning forest. 
+
+We refer to this loss as the **Partial-Fenchel Young loss**, which turns out to have many desirable statistical properties. The loss can also be expressed as an infinium loss (a.k.a partial loss) over a Fenchel-Young objective <d-cite key="fy"></d-cite>, hence its nomenclature. For more information on the properties and forms of this loss, please refer to the paper <d-cite key="stewart2023differentiable"></d-cite>.
+
+### Semi-Supervised Learning Pipeline
+
+An example pipeline to learn embeddings from partial information is depicted below.
+
+
+![](/assets/img/blog-differentiableclustering/pipeline.svg){:style="display:block; margin-left:auto; margin-right:auto; width:100%;"}
+
+
+Embeddings $$V$$ are generated from data $$X$$ using a model (e.g. a neural network), parameterized by weights $$w$$. From these embeddings one can construct a similarity matrix $$\Sigma$$ and calculate the Partial FY loss using any label constraints available for the batch. The model weights are updated in the backwards pass, informed by the gradients previously discussed above.
+
+This methodology can lead to embeddings that are clusterable, and suitable for down-stream transfer learning via a linear probe. For experiments using this pipeline, please refer to our [paper](https://openreview.net/pdf?id=nRfcVBsF9n)!
+
+### Class Discovery
+
+It turns out our clustering methodology allows a neural network to learn meaningful representations from partial label information even in the difficult situation where some classes are unaccounted for.
+
+Below is a tSNE visualization of embeddings for a small CNN (LeNET) trained on the MNIST data set with all but 100 labels have been withheld, and where three of the ten classes have **no labels present in the train set** (depicted in bold).
+
+Despite never seeing a label for these three classes, the model has leveraged partial label information through clustering to infer these classes. Investigating potential applications of learning through clustering to zero-shot and
+self-supervised learning are promising avenues for future work.
+
+![](/assets/img/blog-differentiableclustering/tsne.svg){:style="display:block; margin-left:auto; margin-right:auto; width:50%;"}
