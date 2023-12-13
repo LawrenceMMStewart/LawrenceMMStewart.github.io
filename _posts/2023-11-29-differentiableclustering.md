@@ -92,7 +92,7 @@ In this blog post we will give a simple explanation of our recent work that aims
 
 Firstly, we will recap maximum weight spanning forests and kruskals algorithm.
 
-We can think of our data $$x_1, \ldots, x_n \in \mathbb{R}^d$$ as nodes of a fully-connected graph $$\mathcal{G}$$, where the weight of an edge $$(i,j)$$ is given by the $$(i,j)^{th}$$ entry of a user-chosen similarity matrix $$\Sigma \in \mathbb{R}^{n\times n}$$. A large value of $$\Sigma_{i,j}$$ means that points $$i$$ and $$j$$ are similar, whilst a smaller value means that the points are disimilar.
+We can think of our data $$x_1, \ldots, x_n \in \mathbb{R}^d$$ as nodes of a fully-connected graph $$K_n$$, where the weight of an edge $$(i,j)$$ is given by the $$(i,j)^{th}$$ entry of a user-chosen similarity matrix $$\Sigma \in \mathbb{R}^{n\times n}$$. A large value of $$\Sigma_{i,j}$$ means that points $$i$$ and $$j$$ are similar, whilst a smaller value means that the points are disimilar.
 
 <!-- There are many possible choices of similarity matrix, for example:
 
@@ -107,6 +107,63 @@ Below is an example graph for two different typical choices of $$\Sigma$$.
 
 {% include figure.html path="assets/img/blog-differentiableclustering/Kn.svg" class="img-fluid rounded z-depth-0" zoomable=true %}
 
+{% details Code for Figure %}
+{% highlight python %}
+import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
+np.random.seed(123)
+
+# Generate random nodes
+N = 8
+nodes = np.random.uniform(-1, 1, size=(N, 2))
+fig, ax = plt.subplots(1, 2, figsize=(10, 4))
+
+# Calculate pairwise distances
+distances = -np.sum((nodes[:, np.newaxis] - nodes) ** 2, axis=-1)
+
+cmap = plt.cm.get_cmap('plasma')
+# Create a graph with nodes and edges
+G = nx.Graph()
+G.add_nodes_from(range(N))
+for i in range(N):
+    for j in range(i + 1, N):
+        G.add_edge(i, j, weight=distances[i, j])
+
+# Extract edge weights
+edge_weights = [d['weight'] for u, v, d in G.edges(data=True)]
+exp_edge_weights = [np.exp(e) for e in edge_weights]
+
+# Create a graph plot
+pos = dict(enumerate(nodes))  # Use the node positions as given by their coordinates
+nx.draw(G, pos, node_size=100, node_color='black', ax=ax[0])
+nx.draw(G, pos, node_size=100, node_color='black', ax=ax[1])
+
+# Draw edges with colors based on weights
+edges = nx.draw_networkx_edges(G, pos, edge_color=edge_weights, edge_cmap=cmap, edge_vmin=min(edge_weights), edge_vmax=max(edge_weights), width=2, ax=ax[0])
+
+exp_edges = nx.draw_networkx_edges(G, pos, edge_color=exp_edge_weights, edge_cmap=cmap, edge_vmin=min(exp_edge_weights), edge_vmax=max(exp_edge_weights), width=2, ax=ax[1])
+
+ax[0].set_xlim(-1, 1)
+ax[0].set_ylim(-1, 1)
+
+ax[1].set_xlim(-1, 1)
+ax[1].set_ylim(-1, 1)
+
+ax[0].set_title(r'$\Sigma_{ij} = - |\|x_i - x_j|\|_2^2$')
+ax[1].set_title(r'$\Sigma_{ij} = \exp\left( - |\|x_i - x_j|\|_2^2\right)$')
+
+
+plt.colorbar(edges, ax=ax[0])
+plt.colorbar(exp_edges, ax=ax[1])
+plt.tight_layout(pad=2.0)
+
+plt.savefig('Kn.pdf')
+plt.show()
+
+{% endhighlight %}
+{% enddetails %}
+
 
 
 <!-- \begin{align}
@@ -120,7 +177,7 @@ $$\Sigma_{ij} =\exp\left( -\frac{1}{\gamma^2} \|x_i - x_j\|_2^2\right)$$ -->
 
 ### Spanning trees
 
-For the complete graph with $$n$$ vertices $$K_n$$ over nodes $$\{x_1, \ldots, x_n\}$$, we denote by $$\mathcal{T}$$ the set of *spanning trees* on $$K_n$$, i.e., subgraphs with no cycles and one connected component. Among these trees will be one or more that has maximum weight (the total weight of all edges in the tree), which is known as the *maximum weight spanning tree*.
+For the complete graph $$K_n$$ over nodes $$\{x_1, \ldots, x_n\}$$, we denote by $$\mathcal{T}_n$$ the set of *spanning trees* on $$K_n$$, i.e., subgraphs with no cycles and one connected component. Among these trees will be one or more that has maximum weight (the total weight of all edges in the tree), which is known as the *maximum weight spanning tree*.
 
 `Kruskals algorithm` is a greedy algorithm to find a maximum weight spanning tree. It is incredibly simple, and consists of adding edges in a greedy manner to build the tree, and ignoring an edge if it would lead to a cycle. The psuedo-code for the algorithm is as follows:
 
@@ -141,7 +198,90 @@ At each time step $t$, we will have a forest with $k=n-t$ connected components, 
 
 {% include figure.html path="assets/img/blog-differentiableclustering/mst.gif" class="img-fluid rounded z-depth-0" zoomable=true loop=true style="width:90%;" %}
 
-### Relationship to Clustering
+{% details Code %}
+{% highlight python %}
+import jaxclust
+import jax
+import jax.numpy as jnp
+import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_blobs
+from matplotlib.animation import FuncAnimation, PillowWriter
+np.random.seed(0)
+
+
+@jax.jit
+def pairwise_square_distance(X):
+    """
+    euclidean pairwise square distance between data points
+    """
+    n = X.shape[0]
+    G = jnp.dot(X, X.T)
+    g = jnp.diag(G).reshape(n, 1)
+    o = jnp.ones_like(g)
+    return jnp.dot(g, o.T) + jnp.dot(o, g.T) - 2 * G
+
+NODE_COLOR='#1b9e77'
+EDGE_COLOR='#7570b3'
+solver = jax.jit(jaxclust.solvers.get_flp_solver(False))
+
+N_SAMPLES=32
+X, Y, centers = make_blobs(n_samples=N_SAMPLES, centers=3, cluster_std=0.6, return_centers=True)
+
+ids = np.argsort(Y)
+X = X[ids]
+Y = Y[ids]
+
+S = - pairwise_square_distance(X)
+
+
+writer = PillowWriter(fps=10, metadata=dict(artist='Me'), bitrate=1800)
+
+fig, ax = plt.subplots(layout='constrained', figsize=(5, 3))
+node_positions = {i: (X[i, 0], X[i, 1]) for i in range(N_SAMPLES)}
+G = nx.Graph()
+G.add_nodes_from(node_positions)
+
+ax.set_ylim(X[:, 1].min() - 1, X[:, 1].max() + 1)
+ax.set_xlim(X[:, 0].min() - 1, X[:, 0].max() + 1)
+
+nx.draw(G, pos=node_positions, with_labels=False, node_size=32, node_color=NODE_COLOR, edge_color=EDGE_COLOR, ax=ax, width=2.0)
+
+# Function to update the animation
+def update_forest(step):
+    if step != -1:
+        ax.clear()
+
+        A, M = solver(S, ncc=step)
+        G = nx.Graph()
+
+        node_positions = {i: (X[i, 0], X[i, 1]) for i in range(N_SAMPLES)}
+        G.add_nodes_from(node_positions)
+
+        edges = [(i, j) for i in range(N_SAMPLES) for j in range(i + 1, N_SAMPLES) if A[i, j] == 1]
+        G.add_edges_from(edges)
+
+        nx.draw(G, pos=node_positions, with_labels=False, node_size=32, node_color=NODE_COLOR, edge_color=EDGE_COLOR, ax=ax, width=2.0)
+        ax.set_ylim(X[:, 1].min() - 1, X[:, 1].max() + 1)
+        ax.set_xlim(X[:, 0].min() - 1, X[:, 0].max() + 1)
+        ax.set_title(rf"$k = {step}$,   time step: {N_SAMPLES - step}")
+
+
+
+
+frames = list(reversed(range(1, N_SAMPLES)))
+frames = frames + [-1] * 30
+animation = FuncAnimation(fig, update_forest, frames=frames, repeat=True, interval=100, repeat_delay=20000)
+
+animation.save('mst.gif', writer=writer)
+plt.show()
+
+
+{% endhighlight%}
+{% enddetails%}
+
+### Spanning Forests from Stopping Early
 
 When running Kruskal's algorithm, one typically builds the tree $$T$$ by keeping track of the adjacency matrix $$A\in \{0, 1\}^{n\times n}$$ of the forest at each time step. We recall that:
 
@@ -151,17 +291,9 @@ $$
 \end{equation*}
 $$
 
-However by modifying Kruskal's algorithm, we can also keep track of the cluster equivalence matrix $$M\in \{0, 1\}^{n\times n}$$, where:
-
-$$
-\begin{equation*}
-  M_{i,j} = 1 \Longleftrightarrow (i, j) \text{ are both in the same connected component of }  T
-\end{equation*}
-$$
-
 If we are to stop Kruskal's algorithm one step before completion, we will obtain a forest with $$k=2$$ connected components. We can view these two connected components as clusters!
 
-More generally, if we are stop the algorithm $$k+1$$ steps before completion, we will obtain a forest with $$k$$ connected components. Whats nice, is it turns out that Kruskal's algorithm has a **Matroid Structure**, when means that if we stop the algorithm when the forest has $$k$$ connected components, that forest will indeed have maximum weight amongst all forests of $$\mathcal{G}$$ that have $$k$$ connected components!  More details are given in the box below, but they are not neccessary to understand the goal of this blog.
+More generally, if we are stop the algorithm $$k+1$$ steps before completion, we will obtain a forest with $$k$$ connected components. Whats nice, is it turns out that Kruskal's algorithm has a **Matroid Structure**, when means that if we stop the algorithm when the forest has $$k$$ connected components, that forest will indeed have maximum weight amongst all forests of $$K_n$$ that have $$k$$ connected components!  More details are given in the box below, but they are not neccessary to understand the goal of this blog.
 
 {% details Optimality of Kruskal's %}
 The greedy optimality of Kruskal's follows from the fact that the forests of $$\mathcal{G}$$ correspond to independent sets of the [Graphic Matroid](https://en.wikipedia.org/wiki/Graphic_matroid). 
@@ -169,7 +301,47 @@ The greedy optimality of Kruskal's follows from the fact that the forests of $$\
 To verify this is true, note that the intersection of two forests is always a forest, and the spanning trees of a graph form the basis for the matroid. The matroid circuits can are the cycles in the graph. Optimality of Kruskal's follows trivially (as the algorithm is equivalent to finding the maximum weight basis of the graph matroid).
 {% enddetails %}
 
-Hence we can use Kruskal's algorithm to cluster our data into $$k$$ groups:
+### From Adjacency Matrices to Cluster Information
+
+We will now relate the process of construct a $$k$$-spanning forest to clustering.
+
+Let $$\mathcal{A}$$ denote the set of all adjacency matrices corresponding to forests of $$K_n$$:
+
+$$
+\begin{equation}
+\mathcal{A}=\{ A \subset \{0,1\}^{n\times n} : A \text{ is a forest of } K_n\}, 
+\end{equation}
+$$
+
+and let $$\mathcal{A}_k \subset \mathcal{A}$$ denote such adjacency matrices that have $$k$$ connected components. To relate an adjacency matrix $A\in \mathcal{A}$ to clustering, we define the cluster equivalence function:
+
+$$
+\begin{equation}
+ M : \mathcal{A} \rightarrow \{0,1\}^{n \times n} 
+\end{equation}
+$$
+
+$$
+M(A)_{i,j} = \begin{cases}
+ 1 \quad &\text{if} \quad (i, j) \text{  are in the same connected component.}  \\
+ 0 \quad &\text{if} \quad (i, j) \text{  are in different connected components.}  \\
+\end{cases}
+$$ 
+
+Hence we can view the connected components of a forest as clusters, with two points $$x_i$$ and $$x_j$$ being in the same cluster if and only if $$M(A)_{ij} = 1$$. For short hand, when talking about a fixed $$A_k\in \mathcal{A}_k$$, we write $$M_k := M(A_k)$$. 
+
+{% details Relationship between $$A_k$$ and $$M_k$$ %}
+
+You might have noticed that two different adjacency matrices (i.e. members of $$\mathcal{A}_k$$) may correspond to the same $$M_k$$. Indeed, relabelling points from the same connected component changes $$A_k$$, but will leave the corresponding $$M_k$$ unchanged.  
+
+Clearly the cluster equivalence mapping $$M$$ is not injective. It turns out that $$M$$
+is an **equivalence relation**, and the **equivalence classes** of $$M$$ are the sets of adjacency matricies mapping to the same cluster equivalence matrix (hence the **equivalence** being features in its name)!
+{% enddetails %}
+
+
+### Clustering with Spanning Forests (aka Single Linkage)
+
+We can hence obtain a clustering by running Kruskal's to construct the maximum weight $$k$$-spanning forest: 
 
 {% highlight python %}
 def cluster(Sigma, k)
@@ -180,13 +352,88 @@ def cluster(Sigma, k)
 
 This algorithm is known as **Single-Linkage** and is related to a family of *hierarchical clustering* algorithms. An example of the algorithm running is given below, where the data is separated into three distinct clusters:
 
-{% include figure.html path="assets/img/blog-differentiableclustering/kruskals.gif" class="img-fluid rounded z-depth-0" zoomable=true loop=true style="width:90%;" %}
+{% include figure.html path="assets/img/blog-differentiableclustering/kruskals.gif" class="img-fluid rounded z-depth-0" zoomable=true loop=true style="maxwidth:30%;" %}
 
-This is all well and good, but what does the above have anything to do with differentiable clustering?
 
-### Perturbations
+{% details Code %}
+{% highlight python %}
 
-We will now take a pause from Kruskal's algorithm to look at **perturbations**, sometimes also called **randomized smoothing**. If maths isn't your thing, not to worry as understanding the perturbations / smoothing in detail is not neccessary for getting a grasp of the overall methodology.
+  fig, ax = plt.subplots(1, 3, layout='constrained', figsize=(8, 2))
+  node_positions = {i: (X[i, 0], X[i, 1]) for i in range(N_SAMPLES)}
+  G = nx.Graph()
+  G.add_nodes_from(node_positions)
+
+  ax[2].set_ylim(X[:, 1].min() - 0.1, X[:, 1].max() + 0.1)
+  ax[2].set_xlim(X[:, 0].min() - 0.1, X[:, 0].max() + .1)
+
+  nx.draw(G, pos=node_positions, with_labels=False, node_size=8, node_color=NODE_COLOR, width=2.0, ax=ax[2], edge_color=EDGE_COLOR)
+  ax[2].set_title('k = 64')
+  ax[0].set_title(r'$A_{k}^*(\Sigma)$')
+  ax[1].set_title(r'$M_{k}^*(\Sigma)$')
+  ax[0].imshow(np.eye(N_SAMPLES))
+  ax[1].imshow(np.eye(N_SAMPLES))
+
+  ax[0].set_xticks([])
+  ax[0].set_yticks([])
+
+  ax[1].set_xticks([])
+  ax[1].set_yticks([])
+  ax[2].set_aspect('equal', adjustable='box')
+
+# Function to update the animation
+def update_cluster(step):
+    if step!=-1:
+        ax[0].clear()
+        ax[1].clear()
+        ax[2].clear()
+
+        A, M = solver(S, ncc=step)
+
+        G = nx.Graph()
+
+        node_positions = {i: (X[i, 0], X[i, 1]) for i in range(N_SAMPLES)}
+        G.add_nodes_from(node_positions)
+
+        # Identify edges based on the adjacency matrix
+        edges = [(i, j) for i in range(N_SAMPLES) for j in range(i + 1, N_SAMPLES) if A[i, j] == 1]
+        G.add_edges_from(edges)
+
+        # Draw the graph
+        nx.draw(G, pos=node_positions, with_labels=False, node_size=8, node_color=NODE_COLOR, width=2, ax=ax[2], edge_color=EDGE_COLOR)
+
+
+        ax[2].set_ylim(X[:, 1].min() - 1, X[:, 1].max() + 1)
+        ax[2].set_xlim(X[:, 0].min() - 1, X[:, 0].max() + 1)
+
+        ax[0].imshow(A)
+        ax[0].set_title(r'$A_{k}^*(\Sigma)$')
+        ax[0].set_xticks([])
+        ax[0].set_yticks([])
+        ax[1].imshow(M)
+        ax[1].set_title(r'$M_{k}^*(\Sigma)$')
+        ax[1].set_xticks([])
+        ax[1].set_yticks([])
+        ax[2].set_title(fr"$k = {step}$")
+
+        ax[2].set_aspect('equal', adjustable='box')
+
+
+frames = list(reversed(range(3, N_SAMPLES)))
+frames = frames + [-1] * 50
+animation = FuncAnimation(fig, update_cluster, frames=frames, repeat=True, interval=25, repeat_delay=2500)
+animation.save('kruskals.gif', writer=writer)
+plt.show()
+{% endhighlight%}
+{% enddetails%}
+
+
+
+In this section we have explored how one can perform a clustering by building spanning forests using Kruskal's algorithm (Singe Linkage). But how does this get us close to differentiable clustering? To answer this question we need to look at perturbations!
+
+
+### Perturbations of LPs
+
+We will now take a pause from Kruskal's algorithm to look at **perturbations**, sometimes also called **randomized smoothing**. If maths isn't your thing, not to worry as understanding the perturbations / smoothing in detail is not neccessary for getting a grasp of the overall methodology. For further reading and a more depth exploration of the subject, I would certainly recommend checking out [Francis Bach's blogpost](https://francisbach.com/integration-by-parts-randomized-smoothing-score-functions/) on the subject!
 
 For a [convex hull](https://en.wikipedia.org/wiki/Convex_hull) $$\mathcal{C} \subset \mathbb{R}^d$$ we define:
 
@@ -203,13 +450,18 @@ $$
 \end{align}
 $$
 
-Note both $$y^*$$ and $$F$$ are piece-wise constant in $$\theta$$. For this reason both the gradient $$\nabla_\theta F(\theta) \in \mathbb{R}^d$$ and Jacobian $$J_\theta y^*(\theta)\in \mathbb{R}^{d\times d}$$ will be zero almost everywhere, similar to the case of classical clustering algorithms.
+We begin by remarking that for any $$\theta \in \mathbb{R}^d$$,  $$y^*(\theta)$$ will always be one of the extreme points of the convex hull<d-footnote> This follows from the linearity of the inner-product combined with the definition of a convex hull. </d-footnote>. For this reason both $$y^*$$ and $$F$$ are piece-wise constant in $$\theta$$.
 
-To get non-zero gradients, we can instead replace $$\theta$$ in the above, by $$\theta + \epsilon Z$$, where $$Z$$ is some an exponential-family random variable e.g. multi-variate Gaussian with zero mean and identity covariance. This induces a probability distribution:
+Hence the gradient $$\nabla_\theta F(\theta) \in \mathbb{R}^d$$ and Jacobian $$J_\theta y^*(\theta)\in \mathbb{R}^{d\times d}$$ will be zero almost everywhere, similar to the case of classical clustering algorithms.
+
+To get differentiability, we would like that as $$\theta$$ changes, $$y^*(\theta)$$ moves smoothly along the convex hull, instead of jumping from extreme point to extreme point. To do this we will induce a probability distribution by replacing $$\theta$$ in the above, by $$\theta + \epsilon Z$$, where $$Z$$ is some an exponential-family random variable e.g. multi-variate Gaussian with zero mean and identity covariance. This induces a probability distribution:
 
 $$\mathbb{P}_Y(Y = y ; \theta) = \mathbb{P}_Z(y^*(\theta + \epsilon Z) = y)$$
 
-This yields their perturbed versions:
+How can we understand this? Firsly lets fix $$\theta$$ and the noise amplitude $$\epsilon > 0$$. Provided the noise amplitude is large enough, the argmax solution $$y^*_\epsilon(\theta + \epsilon Z )$$ is now a random variable, taking each of the extreme values of the convex hull with a given probability. By taking the expected value, we can obtain a smoothing!
+
+
+This yields the perturbed versions of both the **argmax** and the **max**:
 
 $$
 \DeclareMathOperator{\argmax}{argmax}
@@ -219,269 +471,191 @@ $$
 \end{align}
 $$
 
-### Recap of Spanning Forests and Trees
-### Single Linkage Clustering
-
-## Differentiable Clustering via Perturbations
+We note that as $$\epsilon \rightarrow 0$$, both $$F_\epsilon(\theta) \rightarrow F(\theta)$$ and $$y^*_\epsilon(\theta) \rightarrow y^*(\theta)$$. There are many other properties of the perturbed argmax and max (such as bounding their difference with their unperturbed counterparts), and we refer the reader to <d-cite key="berthet2020pert"></d-cite>. The figure below depicts the smoothing, (thanks to Quentin Berthet for providing it):
 
 
-## Equations
+![Illustration of smoothing with perturbations.](/assets/img/blog-differentiableclustering/perturbations_fig.svg){:style="display:block; margin-left:auto; margin-right:auto; width:70%;"}
 
-This theme supports rendering beautiful math in inline and display modes using [MathJax 3](https://www.mathjax.org/) engine.
-You just need to surround your math expression with `$$`, like `$$ E = mc^2 $$`.
-If you leave it inside a paragraph, it will produce an inline expression, just like $$ E = mc^2 $$.
 
-To use display mode, again surround your expression with `$$` and place it as a separate paragraph.
-Here is an example:
+### Gradients of smoothed proxies
+
+When the noise distribution is of exponential family, both the gradient of the perturbed max $$\nabla_\theta F_\epsilon(\theta)$$ and the Jacobian of the perturbed argmax $$J_\theta y^*_\theta(\theta)$$ can be expressed as both an expectation of a function of the **max** $$F$$ and as an expectation of a function of the **argmax** $$y^*$$. The details are expressed in the Lemma in the box below:
+
+{% details  Gradients for Perturbed Proxies <d-cite key="pertgrads"></d-cite>. %}
+For noise distribution $$Z$$ with distribution having density $$d\mu(z) = \exp(-\nu(z))dz$$ with $$\nu$$ twice differentiable:
 
 $$
-\left( \sum_{k=1}^n a_k b_k \right)^2 \leq \left( \sum_{k=1}^n a_k^2 \right) \left( \sum_{k=1}^n b_k^2 \right)
+\begin{align*}
+\nabla_\theta F_\epsilon(\theta) &= \textcolor{orange}{\mathbb{E}_Z}\left[ y^*(\theta + \epsilon\textcolor{orange}{Z}))\right]\\ &=  \textcolor{orange}{\mathbb{E}_Z}\left[ F(\theta + \epsilon \textcolor{orange}{Z})\textcolor{orange}{\nabla_z \nu(Z)} / \epsilon  \right]. \\[1.5em]
+J_\theta y^*_\epsilon(\theta) &= \textcolor{orange}{\mathbb{E}_Z}\left[y^*(\theta + \epsilon \textcolor{orange}{Z})\textcolor{orange}{\nabla_z\nu(Z)^T} /\epsilon \right] \\ &= \textcolor{orange}{\mathbb{E}_Z}\left[F(\theta + \epsilon \textcolor{orange}{Z})(\textcolor{orange}{\nabla_z\nu(Z)\nabla_z\nu(Z)^T - \nabla_z^2\nu(Z)}) / \epsilon^2 \right].
+\end{align*}
 $$
 
-
-Note that MathJax 3 is [a major re-write of MathJax](https://docs.mathjax.org/en/latest/upgrading/whats-new-3.0.html) that brought a significant improvement to the loading and rendering speed, which is now [on par with KaTeX](http://www.intmath.com/cg5/katex-mathjax-comparison.php).
-
-***
-
-## Citations
-
-Citations are then used in the article body with the `<d-cite>` tag.
-The key attribute is a reference to the id provided in the bibliography.
-The key attribute can take multiple ids, separated by commas.
-
-The citation is presented inline like this: <d-cite key="gregor2015draw"></d-cite> (a number that displays more information on hover).
-If you have an appendix, a bibliography is automatically created and populated in it.
-
-Distill chose a numerical inline citation style to improve readability of citation dense articles and because many of the benefits of longer citations are obviated by displaying more information on hover.
-However, we consider it good style to mention author last names if you discuss something at length and it fits into the flow well — the authors are human and it’s nice for them to have the community associate them with their work.
-
-***
-
-## Footnotes
-
-Just wrap the text you would like to show up in a footnote in a `<d-footnote>` tag.
-The number of the footnote will be automatically generated.<d-footnote>This will become a hoverable footnote.</d-footnote>
-
-***
-
-## Code Blocks
-
-Syntax highlighting is provided within `<d-code>` tags.
-An example of inline code snippets: `<d-code language="html">let x = 10;</d-code>`.
-For larger blocks of code, add a `block` attribute:
-
-<d-code block language="javascript">
-  var x = 25;
-  function(x) {
-    return x * x;
-  }
-</d-code>
-
-**Note:** `<d-code>` blocks do not look good in the dark mode.
-You can always use the default code-highlight using the `highlight` liquid tag:
-
-{% highlight javascript %}
-var x = 25;
-function(x) {
-  return x * x;
-}
-{% endhighlight %}
-
-***
-
-## Interactive Plots
-
-You can add interative plots using plotly + iframes :framed_picture:
-
-<div class="l-page">
-  <iframe src="{{ '/assets/plotly/demo.html' | relative_url }}" frameborder='0' scrolling='no' height="500px" width="100%" style="border: 1px dashed grey;"></iframe>
-</div>
-
-The plot must be generated separately and saved into an HTML file.
-To generate the plot that you see above, you can use the following code snippet:
-
-{% highlight python %}
-import pandas as pd
-import plotly.express as px
-df = pd.read_csv(
-  'https://raw.githubusercontent.com/plotly/datasets/master/earthquakes-23k.csv'
-)
-fig = px.density_mapbox(
-  df,
-  lat='Latitude',
-  lon='Longitude',
-  z='Magnitude',
-  radius=10,
-  center=dict(lat=0, lon=180),
-  zoom=0,
-  mapbox_style="stamen-terrain",
-)
-fig.show()
-fig.write_html('assets/plotly/demo.html')
-{% endhighlight %}
-
-***
-
-## Details boxes
-
-Details boxes are collapsible boxes which hide additional information from the user. They can be added with the `details` liquid tag:
-
-{% details Click here to know more %}
-Additional details, where math $$ 2x - 1 $$ and `code` is rendered correctly.
 {% enddetails %}
 
-***
-
-## Layouts
-
-The main text column is referred to as the body.
-It is the assumed layout of any direct descendants of the `d-article` element.
-
-<div class="fake-img l-body">
-  <p>.l-body</p>
-</div>
-
-For images you want to display a little larger, try `.l-page`:
-
-<div class="fake-img l-page">
-  <p>.l-page</p>
-</div>
-
-All of these have an outset variant if you want to poke out from the body text a little bit.
-For instance:
-
-<div class="fake-img l-body-outset">
-  <p>.l-body-outset</p>
-</div>
-
-<div class="fake-img l-page-outset">
-  <p>.l-page-outset</p>
-</div>
-
-Occasionally you’ll want to use the full browser width.
-For this, use `.l-screen`.
-You can also inset the element a little from the edge of the browser by using the inset variant.
-
-<div class="fake-img l-screen">
-  <p>.l-screen</p>
-</div>
-<div class="fake-img l-screen-inset">
-  <p>.l-screen-inset</p>
-</div>
-
-The final layout is for marginalia, asides, and footnotes.
-It does not interrupt the normal flow of `.l-body` sized text except on mobile screen sizes.
-
-<div class="fake-img l-gutter">
-  <p>.l-gutter</p>
-</div>
-
-***
-
-## Other Typography?
-
-Emphasis, aka italics, with *asterisks* (`*asterisks*`) or _underscores_ (`_underscores_`).
-
-Strong emphasis, aka bold, with **asterisks** or __underscores__.
-
-Combined emphasis with **asterisks and _underscores_**.
-
-Strikethrough uses two tildes. ~~Scratch this.~~
-
-1. First ordered list item
-2. Another item
-⋅⋅* Unordered sub-list.
-1. Actual numbers don't matter, just that it's a number
-⋅⋅1. Ordered sub-list
-4. And another item.
-
-⋅⋅⋅You can have properly indented paragraphs within list items. Notice the blank line above, and the leading spaces (at least one, but we'll use three here to also align the raw Markdown).
-
-⋅⋅⋅To have a line break without a paragraph, you will need to use two trailing spaces.⋅⋅
-⋅⋅⋅Note that this line is separate, but within the same paragraph.⋅⋅
-⋅⋅⋅(This is contrary to the typical GFM line break behaviour, where trailing spaces are not required.)
-
-* Unordered list can use asterisks
-- Or minuses
-+ Or pluses
-
-[I'm an inline-style link](https://www.google.com)
-
-[I'm an inline-style link with title](https://www.google.com "Google's Homepage")
-
-[I'm a reference-style link][Arbitrary case-insensitive reference text]
-
-[I'm a relative reference to a repository file](../blob/master/LICENSE)
-
-[You can use numbers for reference-style link definitions][1]
-
-Or leave it empty and use the [link text itself].
-
-URLs and URLs in angle brackets will automatically get turned into links.
-http://www.example.com or <http://www.example.com> and sometimes
-example.com (but not on Github, for example).
-
-Some text to show that the reference links can follow later.
-
-[arbitrary case-insensitive reference text]: https://www.mozilla.org
-[1]: http://slashdot.org
-[link text itself]: http://www.reddit.com
-
-Here's our logo (hover to see the title text):
-
-Inline-style:
-![alt text](https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png "Logo Title Text 1")
-
-Reference-style:
-![alt text][logo]
-
-[logo]: https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png "Logo Title Text 2"
-
-Inline `code` has `back-ticks around` it.
-
-```javascript
-var s = "JavaScript syntax highlighting";
-alert(s);
-```
-
-```python
-s = "Python syntax highlighting"
-print s
-```
-
-```
-No language indicated, so no syntax highlighting.
-But let's throw in a <b>tag</b>.
-```
-
-Colons can be used to align columns.
-
-| Tables        | Are           | Cool  |
-| ------------- |:-------------:| -----:|
-| col 3 is      | right-aligned | $1600 |
-| col 2 is      | centered      |   $12 |
-| zebra stripes | are neat      |    $1 |
-
-There must be at least 3 dashes separating each header cell.
-The outer pipes (|) are optional, and you don't need to make the
-raw Markdown line up prettily. You can also use inline Markdown.
-
-Markdown | Less | Pretty
---- | --- | ---
-*Still* | `renders` | **nicely**
-1 | 2 | 3
-
-> Blockquotes are very handy in email to emulate reply text.
-> This line is part of the same quote.
-
-Quote break.
-
-> This is a very long line that will still be quoted properly when it wraps. Oh boy let's keep writing to make sure this is long enough to actually wrap for everyone. Oh, you can *put* **Markdown** into a blockquote.
+We note that if we can solve the LP efficiently, then **both of these gradients can be calculated efficiently in parallel** using Monte-Carlo sampling, and hence are suitable for accelerators such as GPUs and TPUs!
 
 
-Here's a line for us to start with.
+### Perturbations for clustering
 
-This line is separated from the one above by two newlines, so it will be a *separate paragraph*.
+Lets connect the perturbed proxies we saw above to clustering!
 
-This line is also a separate paragraph, but...
-This line is only separated by a single newline, so it's a separate line in the *same paragraph*.
+It turns out that the maximum weight $$k$$-spanning forest can be in fact written in the LP form, where its adjacency matrix is expressed as an **argmax** and its total weight as a **max**. This makes it compatible for using the perturbations smoothing from the previous section!
+
+To see this, let $$\mathcal{C}_k = cvx(\mathcal{A}_k)$$ be the convex hull of trees with $$k$$ connected components. Then the adjacency matrix of the maximum weight $$k$$-spanning forest takes the form of an argmax:
+
+$$
+\begin{equation}
+A_k^*(\Sigma) = \argmax_{A\in \mathcal{C}_k}\left\langle A, \Sigma \right\rangle.
+\end{equation}
+$$
+$$
+Its corresponding total weight, take the form of a max:
+
+$$
+\begin{equation}
+F_k(\Sigma) = \max_{A\in \mathcal{C}_k}\left\langle A, \Sigma \right\rangle.
+\end{equation}
+$$
+
+Hence applying perturbations to this LP we can obtain differentiable proxies:
+
+$$
+\DeclareMathOperator{\argmax}{argmax}
+\begin{align}
+ A^*_{k,\epsilon}(\Sigma) &= \textcolor{orange}{\mathbb{E}_Z}\left[\argmax\limits_{A \in \mathcal{C}_k} \langle A, \Sigma + \epsilon \textcolor{orange}{Z} \rangle\right]. \\[1em]
+ F_{k,\epsilon}(\theta) &= \textcolor{orange}{\mathbb{E}_Z}\left[\max\limits_{A \in \mathcal{C}_k} \langle A, \Sigma + \epsilon \textcolor{orange}{Z} \rangle \right].
+\end{align}
+$$
+
+The animation below depicts how $$A^*_{k, \epsilon}$$ and $$M^*_{k, \epsilon}$$ change for varied $$\epsilon > 0$$ in the case of $$k=3$$.
+
+
+{% include figure.html path="assets/img/blog-differentiableclustering/pertkruskals.gif" class="img-fluid rounded z-depth-0" zoomable=true loop=true style="width:90%;" %}
+
+
+{% details Code %}
+{% highlight python %}
+import jaxclust
+import jax
+import jax.numpy as jnp
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_blobs
+from matplotlib.animation import FuncAnimation, PillowWriter
+np.random.seed(0)
+
+@jax.jit
+def pairwise_square_distance(X):
+    """
+    euclidean pairwise square distance between data points
+    """
+    n = X.shape[0]
+    G = jnp.dot(X, X.T)
+    g = jnp.diag(G).reshape(n, 1)
+    o = jnp.ones_like(g)
+    return jnp.dot(g, o.T) + jnp.dot(o, g.T) - 2 * G
+
+solver = jax.jit(jaxclust.solvers.get_flp_solver(False))
+pert_solver = jax.jit(jaxclust.perturbations.make_pert_flp_solver(solver, constrained=False))
+
+N_SAMPLES=32
+X, Y, centers = make_blobs(n_samples=N_SAMPLES, centers=3, cluster_std=0.6, return_centers=True)
+
+ids = np.argsort(Y)
+X = X[ids]
+Y = Y[ids]
+
+S = - pairwise_square_distance(X)
+S = (S - S.mean()) / S.std()
+
+writer = PillowWriter(fps=10, metadata=dict(artist='Me'), bitrate=1800)
+fig, ax = plt.subplots(1, 2, layout='constrained', figsize=(8, 2))
+plt.suptitle(rf'$\epsilon$ = {0:.4f}')
+
+
+ax[0].set_title(r'$A_{k}^*(\Sigma)$')
+ax[1].set_title(r'$M_{k}^*(\Sigma)$')
+
+A_, M_ = solver(S, 3)
+
+ax[0].imshow(A_)
+ax[1].imshow(M_)
+ax[0].set_xticks([])
+ax[0].set_yticks([])
+ax[1].set_xticks([])
+ax[1].set_yticks([])
+
+# Function to update the animation
+def update_cluster(epsilon):
+    ax[0].clear()
+    ax[1].clear()
+    if epsilon == 0:
+        A, M = A_, M_
+    else:
+        A, F, M = pert_solver(S, ncc=3, sigma=epsilon, rng=jax.random.PRNGKey(0))
+
+    ax[0].imshow(A)
+    ax[0].set_title(r'$A_{k, \epsilon}^*(\Sigma)$')
+    ax[0].set_xticks([])
+    ax[0].set_yticks([])
+    ax[1].imshow(M)
+    ax[1].set_title(r'$M_{k, \epsilon}^*(\Sigma)$')
+    ax[1].set_xticks([])
+    ax[1].set_yticks([])
+    plt.suptitle(rf'$\epsilon$ = {epsilon:.4f}')
+
+
+frames = 10 **  np.linspace(-3, -0.25, 15)
+frames = jnp.concatenate((jnp.zeros(10), frames, jnp.ones(10) * frames[-1]))
+
+animation = FuncAnimation(fig, update_cluster, frames=frames, repeat=True, interval=25, repeat_delay=2500)
+animation.save('pertkruskals.gif', writer=writer)
+plt.show()
+{% endhighlight %}
+{% enddetails %}
+
+So at this point we have a clustering method which:
+
+- Is **differentiable**!
+- Whose gradients can be computed as a Monte Carlo estimator **in parallel**.
+- Compatible with accelerators and autodiff (since all operatiors are matmal).
+
+Lets look at one potential application (among many).
+
+### Incorporating Partial Information
+
+Suppose we have data where some (or all) of the points have labels i.e. a semi-supervised learning or fully-supervised learning setting. We would ideally like to representations of our data, which when clustered, respect this label information.
+
+
+Lets take a simple example below, where the embeddings of a batch of data are depicted by the circles. Lets suppose that the two red points share the same label e.g. *cat* which is different from that of the blue point e.g. *dog*, whilst all other points are unlabelled.
+
+
+
+![Partial label Information can be encoded via must links and must-not links.](/assets/img/blog-differentiableclustering/constraints.svg){:style="display:block; margin-left:auto; margin-right:auto; width:70%;"}
+
+If we were to cluster these embeddings, say into two clusters, using our approach described above, we would obtain something like the depiction below:
+
+![test](/assets/img/blog-differentiableclustering/unconstrained.svg){:style="display:block; margin-left:auto; margin-right:auto; width:70%;"}
+
+However, this is clustering is inconsistent with the label information, since the blue point is now in the same cluster as the two red points. 
+
+To enforce label consistency, we can encode all the label information into a $$n\times n$$ constraint matrix $$M_\Omega$$ (depicted above), whose $$(i, j)^{th}$$ entry is:
+
+- $$1$$ if both $$i$$ and $$j$$ should be in the same connected component i.e. a **must-link constraint**.
+- $$0$$ if $$i$$ and $$j$$ should not be in the same connencted component i.e. a **must-not link constraint**.
+- $$\star$$, a special value signifing there are no constraints between $$i$$ and $$j$$.
+
+Note the **must-link** and **must-not-link** constraints are very general concepts, and go beyond label information. For example, ths can ecompass active learning, self-supervised learning and fairness constraints.
+
+
+
+![test](/assets/img/blog-differentiableclustering/constrained.svg){:style="display:block; margin-left:auto; margin-right:auto; width:70%;"}
+
+<!-- {% include figure.html path="assets/img/blog-differentiableclustering/constrained-clustering.svg" class="img-fluid rounded z-depth-0" zoomable=true style="width:40%;" %} -->
+
+{% include figure.html path="assets/img/blog-differentiableclustering/pipeline.svg" class="img-fluid rounded z-depth-1" zoomable=true style="width:40%;" %}
+
+{% include figure.html path="assets/img/blog-differentiableclustering/tsne.svg" style="width:20%;" %}
+
+![](/assets/img/blog-differentiableclustering/tsne.svg){:style="display:block; margin-left:auto; margin-right:auto; width:70%;"}
