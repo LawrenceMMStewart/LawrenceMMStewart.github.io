@@ -1,11 +1,11 @@
 ---
 layout: distill
-title: Differentiable Clustering with Perturbed Random Forests
-description: A simple intro!
-tags: differentiable clustering research 
+title: Differentiable Clustering 
+description: A step-by-step guide to Differentiable Clustering for Deep Learning.
+tags: [differentiable, clustering, Deep Learning]
 giscus_comments: true
 date: 2023-11-29
-featured: true
+featured: false
 
 authors:
   - name: Lawrence Stewart 
