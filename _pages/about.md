@@ -19,7 +19,7 @@ selected_papers: false # includes a list of papers marked as "selected={true}"
 social: true  # includes social icons at the bottom of the page
 ---
 
-I am a PhD student at École Normale Superiéure and INRIA, working with [Francis Bach](https://www.di.ens.fr/~fbach/), [Quentin Berthet](https://q-berthet.github.io/), [Felipe Llinares-Lopez](https://scholar.google.at/citations?user=zzjTWUUAAAAJ&hl=en) and [Jean-Philippe Vert](https://jpvert.github.io/).
+I am a PhD student at École Normale Supérieure and INRIA, working supervised by [Francis Bach](https://www.di.ens.fr/~fbach/), [Quentin Berthet](https://q-berthet.github.io/),  and [Jean-Philippe Vert](https://jpvert.github.io/).
 
 
 Currently working on Machine Learning, in particular with a research focus on developing novel methodologies for Deep Learning.
